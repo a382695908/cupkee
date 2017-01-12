@@ -309,7 +309,10 @@ int hw_setup_gpio(void)
     for (i = 0; i < PIN_MAP_MAX; i++) {
         pin_maps[i] = 0xff;
     }
+
     led_map = 0xff;
+    /* my board as default */
+    hw_led_map(0, 8);
 
     /* initial pin device control blocks */
     for (i = 0; i < HW_INSTANCES_PIN; i++) {
@@ -339,6 +342,9 @@ int hw_led_map(int bank, int pin)
         return -CUPKEE_EINVAL;
     }
     map = map_gpio(bank, pin);
+    if (map == led_map) {
+        return CUPKEE_OK;
+    }
 
     if (CUPKEE_FALSE == map_use(map)) {
         return -CUPKEE_ERESOURCE;

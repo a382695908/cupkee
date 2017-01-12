@@ -44,6 +44,7 @@ SOFTWARE.
 #include <libopencm3/stm32/adc.h>
 #include <libopencm3/usb/usbd.h>
 #include <libopencm3/usb/cdc.h>
+#include <libopencm3/usb/msc.h>
 
 #include <cupkee_errno.h>
 #include <cupkee_event.h>

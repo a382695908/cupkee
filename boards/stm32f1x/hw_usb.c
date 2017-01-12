@@ -73,6 +73,22 @@ static const struct usb_endpoint_descriptor data_endp[] = {{
 	.bInterval = 1,
 }};
 
+static const struct usb_endpoint_descriptor msc_endp[] = {{
+	.bLength = USB_DT_ENDPOINT_SIZE,
+	.bDescriptorType = USB_DT_ENDPOINT,
+	.bEndpointAddress = 0x04,
+	.bmAttributes = USB_ENDPOINT_ATTR_BULK,
+	.wMaxPacketSize = 64,
+	.bInterval = 0,
+}, {
+	.bLength = USB_DT_ENDPOINT_SIZE,
+	.bDescriptorType = USB_DT_ENDPOINT,
+	.bEndpointAddress = 0x85,
+	.bmAttributes = USB_ENDPOINT_ATTR_BULK,
+	.wMaxPacketSize = 64,
+	.bInterval = 0,
+}};
+
 static const struct {
 	struct usb_cdc_header_descriptor header;
 	struct usb_cdc_call_management_descriptor call_mgmt;
@@ -105,7 +121,7 @@ static const struct {
 		.bDescriptorSubtype = USB_CDC_TYPE_UNION,
 		.bControlInterface = 0,
 		.bSubordinateInterface0 = 1,
-	 }
+	}
 };
 
 static const struct usb_interface_descriptor comm_iface[] = {{
@@ -135,8 +151,21 @@ static const struct usb_interface_descriptor data_iface[] = {{
 	.bInterfaceSubClass = 0,
 	.bInterfaceProtocol = 0,
 	.iInterface = 0,
-
 	.endpoint = data_endp,
+}};
+
+static const struct usb_interface_descriptor msc_iface[] = {{
+	.bLength = USB_DT_INTERFACE_SIZE,
+	.bDescriptorType = USB_DT_INTERFACE,
+	.bInterfaceNumber = 2,
+	.bAlternateSetting = 0,
+	.bNumEndpoints = 2,
+	.bInterfaceClass = USB_CLASS_MSC,
+	.bInterfaceSubClass = USB_MSC_SUBCLASS_SCSI,
+	.bInterfaceProtocol = USB_MSC_PROTOCOL_BBB,
+	.iInterface = 0,
+
+	.endpoint = msc_endp,
 }};
 
 static const struct usb_interface ifaces[] = {{
@@ -145,13 +174,16 @@ static const struct usb_interface ifaces[] = {{
 }, {
 	.num_altsetting = 1,
 	.altsetting = data_iface,
+}, {
+	.num_altsetting = 1,
+	.altsetting = msc_iface,
 }};
 
 static const struct usb_config_descriptor config = {
 	.bLength = USB_DT_CONFIGURATION_SIZE,
 	.bDescriptorType = USB_DT_CONFIGURATION,
 	.wTotalLength = 0,
-	.bNumInterfaces = 2,
+	.bNumInterfaces = 3,
 	.bConfigurationValue = 1,
 	.iConfiguration = 0,
 	.bmAttributes = 0x80,
@@ -162,8 +194,8 @@ static const struct usb_config_descriptor config = {
 
 static const char *usb_strings[] = {
 	"Cupkee",
-	"CDC-ACM Cupkee",
-	"CUPKEE",
+	"Cup Atom",
+	"Atom001",
 };
 
 /* Buffer to be used for control requests. */
@@ -198,6 +230,7 @@ static void cdcacm_data_rx_cb(usbd_device *usbd_dev, uint8_t ep)
 	char buf[64];
 	int len = usbd_ep_read_packet(usbd_dev, 0x01, buf, 64);
 
+    show_disk_info();
 	if (len) {
         if (console_input_cb)
             console_input_cb(buf, len);
@@ -230,11 +263,31 @@ static void cdcacm_set_config(usbd_device *usbd_dev, uint16_t wValue)
 
 static usbd_device *usbd_dev;
 
+#if 1
+#include "sysdisk.h"
 void hw_setup_usb(void)
 {
 	usbd_dev = usbd_init(&st_usbfs_v1_usb_driver, &dev, &config, usb_strings, 3, usbd_control_buffer, sizeof(usbd_control_buffer));
+
+    usb_msc_init(usbd_dev, 0x85, 64, 0x04, 64, "VendorID", "ProductID", "0.00",
+            sysdisk_sector_number(), sysdisk_sector_read, sysdisk_sector_write);
+
 	usbd_register_set_config_callback(usbd_dev, cdcacm_set_config);
 }
+
+#else
+#include "ramdisk.h"
+void hw_setup_usb(void)
+{
+	usbd_dev = usbd_init(&st_usbfs_v1_usb_driver, &dev, &config, usb_strings, 3, usbd_control_buffer, sizeof(usbd_control_buffer));
+
+    ramdisk_init();
+    usb_msc_init(usbd_dev, 0x85, 64, 0x04, 64, "VendorID", "ProductID", "0.00",
+            ramdisk_blocks(), ramdisk_read, ramdisk_write);
+
+	usbd_register_set_config_callback(usbd_dev, cdcacm_set_config);
+}
+#endif
 
 int hw_console_putc(int c)
 {
@@ -282,3 +335,4 @@ void hw_poll_usb(void)
     if (console_drain_cb)
         console_drain_cb();
 }
+
