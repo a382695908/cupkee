@@ -230,7 +230,7 @@ static void cdcacm_data_rx_cb(usbd_device *usbd_dev, uint8_t ep)
 	char buf[64];
 	int len = usbd_ep_read_packet(usbd_dev, 0x01, buf, 64);
 
-    show_disk_info();
+    log_show();
 	if (len) {
         if (console_input_cb)
             console_input_cb(buf, len);
@@ -263,7 +263,7 @@ static void cdcacm_set_config(usbd_device *usbd_dev, uint16_t wValue)
 
 static usbd_device *usbd_dev;
 
-#if 1
+#if 0
 #include "sysdisk.h"
 void hw_setup_usb(void)
 {

@@ -93,16 +93,6 @@ uint8_t FatSector[] = {
 };
 
 uint8_t DirSector[] = {
-	// long filename entry
-	0x41,									// sequence number
-	WBVAL('c'), WBVAL('u'), WBVAL('p'), WBVAL('d'), WBVAL('i'),		// five name characters in UTF-16
-	0x0F,									// attributes
-	0x00,									// type
-	0x00,									// checksum of DOS filename (computed in ramdisk_init)
-	WBVAL('s'), WBVAL('k'), WBVAL('.'), WBVAL('d'), WBVAL('a'), WBVAL('t'),	// six name characters in UTF-16
-	0x00, 0x00,								// first cluster
-	WBVAL(0), WBVAL(0),					    // two name characters in UTF-16
-	// actual entry
 	'C', 'U', 'P', 'D', 'I', 'S', 'K', ' ', // filename
 	'D', 'A', 'T',						    // extension
 	0x20,									// attribute byte
@@ -118,40 +108,58 @@ uint8_t DirSector[] = {
 	QBVAL(FILEDATA_SECTOR_COUNT * SECTOR_SIZE)				// file size in bytes
 };
 
-//static uint8_t ramdata[FILEDATA_SECTOR_COUNT * SECTOR_SIZE];
-
 int ramdisk_init(void)
 {
-	uint32_t i = 0;
-
-	// compute checksum in the directory entry
-	uint8_t chk = 0;
-	for (i = 32; i < 43; i++) {
-		chk = (((chk & 1) << 7) | ((chk & 0xFE) >> 1)) + DirSector[i];
-	}
-	DirSector[13] = chk;
-
     return 0;
-}
-
-static void ramdata_read(uint32_t lba, uint8_t *copy_to)
-{
-    memset(copy_to, ' ', 512);
-    if (lba == FILEDATA_START_SECTOR) {
-        memcpy(copy_to, "hello", 5);
-    }
 }
 
 static uint32_t xx_lba = 0xffffffff;
 static uint8_t  xx_buf[SECTOR_SIZE];
+static int info_num = 0;
+static int info_pos = 0;
+static char info_buf[4096];
+
+static void log_write(uint32_t lba)
+{
+    if (info_pos < 4096) {
+        int n;
+        if (info_num % 8 == 0) {
+            n = snprintf(info_buf + info_pos, 4096 - info_pos, "W->%.4x(%.4d)\r\n", lba, lba);
+        } else {
+            n = snprintf(info_buf + info_pos, 4096 - info_pos, "W->%.4x(%.4d)  ", lba, lba);
+        }
+        info_pos += n;
+        info_num ++;
+    }
+}
+static void log_read(uint32_t lba)
+{
+    if (info_pos < 4096) {
+        int n;
+        if (info_num % 8 == 0) {
+            n = snprintf(info_buf + info_pos, 4096 - info_pos, "R<-%.4x(%.4d)\r\n", lba, lba);
+        } else {
+            n = snprintf(info_buf + info_pos, 4096 - info_pos, "R<-%.4x(%.4d)  ", lba, lba);
+        }
+        info_pos += n;
+        info_num ++;
+    }
+}
+
+void log_show(void)
+{
+    static int show = 1;
+
+    if (show) {
+    info_buf[info_pos] = 0;
+    hw_console_sync_puts(info_buf);
+    show = 0;
+    }
+}
 
 int ramdisk_read(uint32_t lba, uint8_t *copy_to)
 {
-    if (lba == xx_lba) {
-        memcpy(copy_to, xx_buf, SECTOR_SIZE);
-        return 0;
-    }
-
+    log_read(lba);
 	memset(copy_to, 0, SECTOR_SIZE);
 	switch (lba) {
 		case 0: // sector 0 is the boot sector
@@ -184,6 +192,8 @@ int ramdisk_write(uint32_t lba, const uint8_t *copy_from)
 {
 	(void)lba;
 	(void)copy_from;
+
+    log_write(lba);
 
     if (copy_from[0] != 0) {
         xx_lba = lba;
